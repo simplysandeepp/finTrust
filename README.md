@@ -158,6 +158,75 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Backend runs at `http://localhost:8000`.
 
+## Docker Quick Start
+
+If port `3000` is already in use, run with a different frontend port:
+
+```bash
+FRONTEND_PORT=3001 docker compose up
+```
+
+### Build And Run Locally (From Source)
+
+First build:
+
+```bash
+docker compose up --build
+```
+
+After first build (normal daily use):
+
+```bash
+docker compose up
+```
+
+Stop containers:
+
+```bash
+docker compose down
+```
+
+### Publish Images To Docker Hub
+
+1. Log in:
+
+```bash
+docker login
+```
+
+2. Build images:
+
+```bash
+docker compose build
+```
+
+3. Tag images (replace `<dockerhub-username>` and choose a tag):
+
+```bash
+docker tag fintrust-ai-backend:latest <dockerhub-username>/fintrust-ai-backend:v1
+docker tag fintrust-ai-frontend:latest <dockerhub-username>/fintrust-ai-frontend:v1
+```
+
+4. Push:
+
+```bash
+docker push <dockerhub-username>/fintrust-ai-backend:v1
+docker push <dockerhub-username>/fintrust-ai-frontend:v1
+```
+
+### Run Only From Docker Hub Images
+
+Use `docker-compose.hub.yml` to pull and run prebuilt images.
+
+```bash
+export DOCKERHUB_USER=<dockerhub-username>
+export TAG=v1
+docker compose -f docker-compose.hub.yml pull
+docker compose -f docker-compose.hub.yml up -d
+```
+
+This flow avoids rebuilding every time and keeps startup to a few commands.
+
 ## Available Backend Endpoints
 
 - `GET /` - basic API status

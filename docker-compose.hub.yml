@@ -1,0 +1,19 @@
+services:
+  backend:
+    image: ${simplysandeepp}/fintrust-ai-backend:${TAG:-latest}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+
+  frontend:
+    image: ${simplysandeepp}/fintrust-ai-frontend:${TAG:-latest}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      - backend
