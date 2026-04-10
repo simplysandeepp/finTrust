@@ -1,0 +1,191 @@
+FINTRUST PRIVATE PROJECT LICENSE
+
+Copyright (c) 2026 FinTrust Project Team. All rights reserved.
+
+Project: FinTrust - Medical Claims Processing System
+Repository: https://github.com/SachinManral/finTrust
+License Type: Proprietary Internal-Use License
+Effective Date: 2026
+Version: 2.0
+
+========================================================================
+1. LICENSE STATUS
+========================================================================
+
+FinTrust is a private group project. This repository and its contents are
+not open source and are not released under the MIT License or any other
+public open-source license.
+
+All rights not expressly granted in this license are reserved by the
+FinTrust Project Team.
+
+========================================================================
+2. OWNERSHIP
+========================================================================
+
+The FinTrust Project Team owns all rights, title, and interest in this
+project, including its source code, documentation, configuration, design
+assets, workflows, and related materials, except for third-party components
+that remain subject to their own licenses.
+
+This license applies to all project components, including:
+
+- Frontend applications and UI assets
+- Backend services, APIs, and processing logic
+- Documentation and internal guides
+- Configuration files, scripts, and deployment assets
+- Data models, schemas, and supporting utilities
+
+========================================================================
+3. PERMITTED USE
+========================================================================
+
+Access to and use of this project is limited to:
+
+- Authorized members of the FinTrust Project Team
+- Approved collaborators working with the Project Team
+- Personnel expressly permitted by the Project Team for internal business,
+  development, testing, security review, or deployment purposes
+
+Authorized users may:
+
+- View and use the software for approved internal project work
+- Modify the codebase for project-related development and maintenance
+- Create internal builds and deployments approved by the Project Team
+- Share project materials only with other authorized users who have a
+  legitimate need to access them
+
+========================================================================
+4. RESTRICTIONS
+========================================================================
+
+Unless the FinTrust Project Team gives prior written permission, you may
+not:
+
+- Publish, distribute, or sublicense this software
+- Release the codebase or any substantial portion of it as open source
+- Share source code, documentation, credentials, datasets, or internal
+  project materials with unauthorized persons
+- Sell, lease, transfer, or commercially exploit this software outside
+  approved Project Team activities
+- Remove copyright, confidentiality, or ownership notices
+- Use the FinTrust name, branding, or trademarks in a way that implies
+  separate ownership or unauthorized endorsement
+
+========================================================================
+5. CONFIDENTIALITY
+========================================================================
+
+This repository may contain confidential, proprietary, operational, or
+sensitive information. Authorized users must protect that information and
+must not disclose it outside approved project channels.
+
+Users are responsible for handling all medical, claims, operational, and
+security-related information in accordance with applicable internal policies,
+contracts, and legal requirements.
+
+========================================================================
+6. CONTRIBUTIONS
+========================================================================
+
+All contributions made to this project by team members or approved
+collaborators are intended for use within the FinTrust project and are
+treated as contributions to a group-owned project.
+
+By submitting code, documentation, designs, or other project materials, a
+contributor represents that they have the right to submit the work and grants
+the FinTrust Project Team the right to use, modify, integrate, and maintain
+that contribution as part of the project.
+
+Contribution access and review are managed internally by the Project Team.
+
+========================================================================
+7. THIRD-PARTY SOFTWARE
+========================================================================
+
+This project may include or depend on third-party libraries, frameworks, and
+tools. Those components remain subject to their respective licenses.
+
+Examples of third-party dependencies used in this project may include:
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- FastAPI
+- SQLAlchemy
+- Pydantic
+- Redis
+- Celery
+
+Use of third-party software must comply with the applicable third-party
+license terms.
+
+========================================================================
+8. MEDICAL AND COMPLIANCE DISCLAIMER
+========================================================================
+
+FinTrust is intended to support medical claims processing and related
+administrative workflows. It is not intended to provide medical advice, make
+independent clinical decisions, or replace professional review.
+
+Users are responsible for:
+
+- Validating system outputs before operational or clinical reliance
+- Protecting patient and business data
+- Ensuring compliance with applicable laws, regulations, and contractual
+  obligations, including privacy and healthcare requirements where relevant
+
+========================================================================
+9. NO WARRANTY
+========================================================================
+
+THIS SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT,
+AVAILABILITY, ACCURACY, OR SECURITY.
+
+========================================================================
+10. LIMITATION OF LIABILITY
+========================================================================
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE FINTRUST PROJECT TEAM SHALL NOT
+BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES, OR FOR ANY LOSS OF DATA, BUSINESS, REVENUE, PROFITS,
+OR GOODWILL, ARISING FROM OR RELATED TO THE USE OF THIS SOFTWARE OR INABILITY
+TO USE THIS SOFTWARE.
+
+========================================================================
+11. TERMINATION
+========================================================================
+
+Any permission granted under this license terminates automatically if you
+breach its terms or access the project without authorization.
+
+Upon termination, you must stop using the project and, if requested by the
+FinTrust Project Team, return or delete any copies of project materials in
+your possession or control, except where retention is required by law or
+contract.
+
+========================================================================
+12. CONTACT
+========================================================================
+
+Project Owner: FinTrust Project Team
+Repository: https://github.com/SachinManral/finTrust
+
+For licensing or access questions, contact the Project Team through the
+official repository administrators or designated project leads.
+
+========================================================================
+13. VERSION HISTORY
+========================================================================
+
+Version 2.0 (2026)
+- Replaced the prior MIT-style text
+- Updated ownership to reflect a group project
+- Clarified that the repository is private and proprietary
+
+========================================================================
+
+This document is the governing license notice for the FinTrust project.
