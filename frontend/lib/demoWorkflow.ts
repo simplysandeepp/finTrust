@@ -63,7 +63,6 @@ const demoHospitalUser: AppUser = {
   id: "H-DEMO-001",
   name: "City Care Hospital, Mumbai",
   email: "citycare.demo@claimheart.ai",
-  password: "hospital123",
   role: "hospital",
   doctorName: "Dr. Rakesh Iyer",
 };
@@ -72,7 +71,6 @@ const demoInsurerUser: AppUser = {
   id: "I-DEMO-001",
   name: "HDFC ERGO General Insurance",
   email: "insurer.demo@claimheart.ai",
-  password: "insurer123",
   role: "insurer",
 };
 
@@ -89,7 +87,6 @@ const buildPatient = (input: {
   patientId: input.id,
   name: input.name,
   email: input.email,
-  password: "patient123",
   role: "patient" as const,
   dob: input.dob,
   policyNumber: input.policyNumber,
@@ -113,7 +110,7 @@ export const DEMO_DOC_URLS: Record<DemoDocSourceId, string> = {
 export const DEMO_WORKFLOW_CASES: DemoWorkflowCase[] = [
   {
     id: "case-1",
-    shortLabel: "Case 1",
+    shortLabel: "Waiting period",
     title: "Waiting Period Rejection",
     summary: "Riya Sharma's pre-authorisation for acute febrile illness should be rejected because the 24-month general hospitalisation waiting period is still active.",
     narrative: "A clean policy-validation scenario where the insurer should deny cashless approval by citing Clause 3.2 and Section 6.4.",
@@ -184,7 +181,7 @@ export const DEMO_WORKFLOW_CASES: DemoWorkflowCase[] = [
   },
   {
     id: "case-2",
-    shortLabel: "Case 2",
+    shortLabel: "Manual review",
     title: "Dengue Billing Fraud",
     summary: "Arjun Mehta's dengue claim includes three PlateMax injections billed within 24 hours, exceeding the policy protocol limit of two.",
     narrative: "A strong fraud-review scenario. Prescription and lab results look legitimate, but the billing document exposes a dosage-frequency anomaly and the insurer should move the claim to manual review.",
@@ -258,9 +255,9 @@ export const DEMO_WORKFLOW_CASES: DemoWorkflowCase[] = [
   },
   {
     id: "case-3",
-    shortLabel: "Case 3",
+    shortLabel: "Approved path",
     title: "Dengue Claim Approved",
-    summary: "Same dengue flow as Case 2, but the corrected invoice includes only two PlateMax administrations, so the claim should clear automatically.",
+    summary: "Same dengue flow as the manual-review scenario, but the corrected invoice includes only two PlateMax administrations, so the claim should clear automatically.",
     narrative: "A strong contrast case where the exact same workflow produces a different outcome when billing aligns with prescription and policy.",
     diagnosis: "Dengue Fever with Thrombocytopenia",
     icdCode: "A97.1",
@@ -297,7 +294,7 @@ export const DEMO_WORKFLOW_CASES: DemoWorkflowCase[] = [
       { slotId: "billing", label: "Corrected Billing Invoice", sourceId: "billing", fileHint: "billing-corrected.pdf" },
     ],
     queueHighlights: [
-      "Policy eligibility and diagnosis remain unchanged from Case 2.",
+      "Policy eligibility and diagnosis remain unchanged from the manual-review scenario.",
       "Corrected bill aligns with protocol: two PlateMax administrations only.",
       "No fraud or dosing anomaly remains after cross-check.",
     ],

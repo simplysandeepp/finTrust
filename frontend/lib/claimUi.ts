@@ -1,10 +1,10 @@
-﻿import type { ClaimActor, ClaimStatus, Notification, UserRole } from "@/types";
+import type { ClaimActor, ClaimStatus, Notification, UserRole } from "@/types";
 
 export const claimStatusClasses: Record<ClaimStatus, string> = {
-  pending: "bg-amber-50 text-amber-600 border-amber-200",
-  approved: "bg-green-50 text-green-600 border-green-200",
-  denied: "bg-red-50 text-red-500 border-red-200",
-  under_review: "bg-[var(--ch-blue-light)] text-[var(--ch-blue-dark)] border-[var(--ch-blue-border)]",
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
+  approved: "bg-green-50 text-green-700 border-green-200",
+  denied: "bg-red-50 text-red-600 border-red-200",
+  under_review: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
 export const notificationClasses: Record<Notification["type"], string> = {
@@ -15,10 +15,10 @@ export const notificationClasses: Record<Notification["type"], string> = {
 };
 
 export const actorDotClasses: Record<ClaimActor, string> = {
-  system: "bg-slate-400",
-  hospital: "bg-amber-500",
-  insurer: "bg-[var(--ch-blue)]",
-  patient: "bg-teal-500",
+  system: "bg-[var(--ch-blue)]",
+  hospital: "bg-slate-400",
+  insurer: "bg-[#22C55E]",
+  patient: "bg-violet-500",
 };
 
 export const formatDateTime = (value: string) =>
@@ -30,8 +30,23 @@ export const formatDateTime = (value: string) =>
     minute: "2-digit",
   });
 
+export const formatDateOnly = (value: string) =>
+  new Date(value).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+export const formatCurrency = (value: number) => `₹${Number(value).toLocaleString("en-IN")}`;
+
 export const formatRelativeTime = (value: string) => {
   const diff = Date.now() - new Date(value).getTime();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+
+  if (diff > weekMs) {
+    return formatDateOnly(value);
+  }
+
   const mins = Math.round(diff / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;

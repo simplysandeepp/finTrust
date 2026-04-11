@@ -6,7 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-size: 14px;
+  --font-size: 15px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -46,15 +46,16 @@
   --sidebar-ring: oklch(0.708 0 0);
 
   /* ── ClaimHeart Brand Tokens ─────────────────────────────────── */
-  --ch-blue: #4a8edb;
-  --ch-blue-dark: #2f6fb2;
-  --ch-blue-light: #eef4fb;
-  --ch-blue-border: #c7dbf4;
+  --ch-navy: #0a1628;
+  --ch-blue: #5a97d8;
+  --ch-blue-dark: #3f79b4;
+  --ch-blue-light: #edf5ff;
+  --ch-blue-border: #c9dcf4;
   --ch-green: #22c55e;
   --ch-red: #ef4444;
   --ch-amber: #f59e0b;
-  --ch-hero: #0c1523;
-  --ch-surface: #f8fafc;
+  --ch-hero: #10233c;
+  --ch-surface: #f6f9fc;
   --ch-text: #1e293b;
   --ch-muted: #64748b;
   --ch-subtle: #94a3b8;

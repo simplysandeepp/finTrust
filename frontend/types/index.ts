@@ -108,12 +108,14 @@ export interface Notification {
 }
 
 export interface AppUser {
+  uid?: string;
   id: string;
   name: string;
   email: string;
   phone?: string;
-  password: string;
   role: UserRole;
+  authProvider?: "password" | "google" | "apple" | "microsoft";
+  state?: string;
   patientId?: string;
   dob?: string;
   policyNumber?: string;
@@ -127,4 +129,11 @@ export interface AppUser {
   website?: string;
   organizationType?: string;
   organizationCode?: string;
+  taxId?: string;
+  npi?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  registrationCertificateName?: string;
+  policyDocumentName?: string;
 }

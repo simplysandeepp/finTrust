@@ -1,46 +1,7 @@
-import type { AppUser, Claim, Notification } from "@/types";
+import type { Claim, Notification } from "@/types";
 
 const now = new Date();
 const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString();
-
-export const MOCK_USERS: AppUser[] = [
-  {
-    id: "P-001",
-    name: "Priya Sharma",
-    email: "priya@test.com",
-    phone: "+91 98765 43120",
-    password: "patient123",
-    role: "patient",
-    dob: "15 Jun 1990",
-    policyNumber: "POL-4021B",
-    insuranceCompany: "Star Health",
-    sumInsured: 500000,
-    patientId: "P-001",
-  },
-  {
-    id: "H-001",
-    name: "Apollo Hospitals Delhi",
-    email: "apollo@test.com",
-    phone: "+91 98111 32000",
-    password: "hospital123",
-    role: "hospital",
-    doctorName: "Dr. Ramesh Gupta",
-    hospitalRegNo: "DL-2018-HC-10241",
-    city: "Delhi",
-    department: "Cashless Claims Desk",
-  },
-  {
-    id: "I-001",
-    name: "Star Health Insurance",
-    email: "star@test.com",
-    phone: "+91 96000 44112",
-    password: "insurer123",
-    role: "insurer",
-    city: "Chennai",
-    department: "Health Claims Review",
-    employeeId: "STAR-REV-12",
-  },
-];
 
 export const MOCK_CLAIMS: Claim[] = [
   {
@@ -200,21 +161,11 @@ export const seedIfEmpty = () => {
     return;
   }
 
-  if (!window.localStorage.getItem("users")) {
-    window.localStorage.setItem("users", JSON.stringify(MOCK_USERS));
-  }
-
   if (!window.localStorage.getItem("claims")) {
     window.localStorage.setItem("claims", JSON.stringify(MOCK_CLAIMS));
   }
 
   if (!window.localStorage.getItem("notifications")) {
     window.localStorage.setItem("notifications", JSON.stringify(MOCK_NOTIFICATIONS));
-  }
-
-  if (!window.localStorage.getItem("claimheart.currentUser")) {
-    window.localStorage.setItem("claimheart.currentUser", JSON.stringify(MOCK_USERS[2]));
-    window.localStorage.setItem("claimheart.role", JSON.stringify(MOCK_USERS[2].role));
-    window.localStorage.setItem("role", MOCK_USERS[2].role);
   }
 };

@@ -39,13 +39,80 @@
 #     return text
 
 
-import easyocr
+from __future__ import annotations
 
-reader = easyocr.Reader(['en'])
+from typing import Any, Dict, List
+
+import easyocr
+from pdf2image import convert_from_path
+
+from app.preprocessing.image_cleaning import preprocess_image
+from app.preprocessing.table_detection import detect_tables, group_tokens_into_lines
+from app.preprocessing.text_normalization import normalize_text
+
+
+reader = easyocr.Reader(["en"])
+
+
+def _ocr_page(image_source: Any, page_number: int) -> Dict[str, Any]:
+    preprocessed = preprocess_image(image_source)
+    results = reader.readtext(preprocessed.image, detail=1, paragraph=False)
+
+    tokens: List[Dict[str, Any]] = []
+    for bbox, text, confidence in results:
+        tokens.append(
+            {
+                "bbox": [[float(point[0]), float(point[1])] for point in bbox],
+                "text": text,
+                "confidence": float(confidence),
+            }
+        )
+
+    lines = group_tokens_into_lines(tokens)
+    line_texts = [line["text"] for line in lines]
+    tables = detect_tables(lines)
+    normalized = normalize_text("\n".join(line_texts))
+
+    return {
+        "page_number": page_number,
+        "raw_text": "\n".join(line_texts),
+        "normalized_text": normalized["text"],
+        "lines": normalized["lines"],
+        "ocr_tokens": tokens,
+        "tables": tables,
+        "preprocessing": preprocessed.metadata,
+    }
+
+
+def extract_document_layout(file_path: str) -> Dict[str, Any]:
+    if file_path.lower().endswith(".pdf"):
+        pages = [_ocr_page(page, index) for index, page in enumerate(convert_from_path(file_path), start=1)]
+    else:
+        pages = [_ocr_page(file_path, 1)]
+
+    raw_text = "\n\n".join(page["raw_text"] for page in pages if page["raw_text"])
+    normalized_text = "\n\n".join(page["normalized_text"] for page in pages if page["normalized_text"])
+    tables: List[Dict[str, Any]] = []
+    lines: List[str] = []
+
+    for page in pages:
+        lines.extend(page["lines"])
+        for table in page["tables"]:
+            tables.append(
+                {
+                    **table,
+                    "page_number": page["page_number"],
+                }
+            )
+
+    return {
+        "raw_text": raw_text,
+        "normalized_text": normalized_text,
+        "lines": lines,
+        "tables": tables,
+        "pages": pages,
+    }
+
 
 def extract_text_from_image(image_path):
-    results = reader.readtext(image_path, detail=0)
-    
-    text = "\n".join(results)
-    
-    return text
+    return extract_document_layout(image_path)["raw_text"]

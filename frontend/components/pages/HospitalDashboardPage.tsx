@@ -1,110 +1,240 @@
-﻿"use client";
+"use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  ArrowRight,
-  CheckCircle2,
-  Clock3,
-  FileDigit,
-  FileSearch,
-  RefreshCcw,
-  ShieldCheck,
-  UploadCloud,
-  WandSparkles,
+  AlertTriangle,
+  Check,
+  CircleDashed,
+  LoaderCircle,
+  Minus,
+  Trash2,
+  Upload,
 } from "lucide-react";
-import MotionCard from "@/components/ui/MotionCard";
-import RecentActivityCard from "@/components/pages/RecentActivityCard";
+import { ActionPanel, ConfidenceBar, DashboardCard, DecisionSupportCard, MetricCard, StepTracker, StatusChip } from "@/components/dashboard/SharedDashboard";
 import { SkeletonBlock, SkeletonCard } from "@/components/ui/Skeleton";
 import usePageReady from "@/hooks/usePageReady";
 import { getCurrentUser } from "@/lib/api/auth";
+import { submitClaim } from "@/lib/api/claims";
+import { formatCurrency, formatRelativeTime } from "@/lib/claimUi";
+import { resolveHospitalScenario } from "@/lib/dashboardContent";
 import {
   createWorkflowClaimInput,
-  DEMO_WORKFLOW_CASES,
-  getActiveDemoCaseId,
-  getCaseDocumentPreview,
   getDemoCaseById,
   loadDemoDocumentCorpus,
   resolveViewerForRole,
   setActiveDemoCaseId,
-  type DemoCaseId,
-  type DemoDocSourceId,
   type DemoUploadSelection,
 } from "@/lib/demoWorkflow";
-import { submitClaim } from "@/lib/api/claims";
 import { useAppStore } from "@/store/useAppStore";
 import type { AppUser, Claim } from "@/types";
 
-type UploadSlotState = DemoUploadSelection;
-type DocPreviewState = {
-  status: "idle" | "scanning" | "extracting" | "typing" | "ready";
-  renderedText: string;
+type UploadStatus = "missing" | "scanning" | "ready" | "issue";
+
+type UploadItem = {
+  slotId: string;
+  fileName: string;
+  type: string;
+  size: number;
+  status: UploadStatus;
 };
 
-const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const trackSteps = (claim: Claim) => [
+  { label: "Submitted", state: "complete" as const },
+  { label: "Documents verified", state: claim.documents.length > 0 ? "complete" as const : "active" as const },
+  { label: "Policy checked", state: claim.status !== "pending" ? "complete" as const : "active" as const },
+  { label: claim.status === "denied" ? "Denied" : claim.status === "approved" ? "Approved" : "Manual review", state: claim.status === "pending" ? "upcoming" as const : "complete" as const },
+  { label: "Payment sent", state: claim.status === "approved" ? "complete" as const : "upcoming" as const },
+];
 
-const statusTone = {
-  approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  denied: "border-rose-200 bg-rose-50 text-rose-700",
-  under_review: "border-amber-200 bg-amber-50 text-amber-700",
-  pending: "border-slate-200 bg-slate-50 text-slate-600",
-} as const;
-
-const formatFileSize = (size: number) => `${Math.max(1, Math.round(size / 1024))} KB`;
+const statusChipTone = (status: Claim["status"]): "green" | "red" | "amber" | "blue" =>
+  status === "approved" ? "green" : status === "denied" ? "red" : status === "under_review" ? "amber" : "blue";
 
 export default function HospitalDashboardPage() {
   const ready = usePageReady();
   const claims = useAppStore((state) => state.claims);
   const [viewer, setViewer] = useState<AppUser | null>(null);
-  const [corpus, setCorpus] = useState<Record<DemoDocSourceId, string> | null>(null);
-  const [selectedCaseId, setSelectedCaseId] = useState<DemoCaseId>("case-2");
-  const [uploads, setUploads] = useState<Record<string, UploadSlotState>>({});
-  const [docPreview, setDocPreview] = useState<Record<string, DocPreviewState>>({});
-  const [terminalLines, setTerminalLines] = useState<string[]>([]);
-  const [processing, setProcessing] = useState(false);
-  const [processed, setProcessed] = useState(false);
+  const [corpusLoaded, setCorpusLoaded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"submit" | "track">("submit");
+  const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const terminalRef = useRef<HTMLDivElement | null>(null);
+  const [form, setForm] = useState({
+    patientName: "Arjun Mehta",
+    policyNumber: "HDFC-ERGO-2025-991203",
+    hospital: "City Care Hospital, Mumbai",
+    diagnosis: "Dengue Fever with Thrombocytopenia",
+    requestedAmount: 22150,
+  });
+  const [uploads, setUploads] = useState<Record<string, UploadItem>>({});
 
   useEffect(() => {
-    const activeCaseId = getActiveDemoCaseId();
-    setSelectedCaseId(activeCaseId);
-
-    getCurrentUser().then((currentUser) => {
-      setViewer(resolveViewerForRole("hospital", currentUser, activeCaseId));
-    });
-
-    loadDemoDocumentCorpus().then(setCorpus);
+    getCurrentUser().then((currentUser) => setViewer(resolveViewerForRole("hospital", currentUser)));
+    loadDemoDocumentCorpus().then(() => setCorpusLoaded(true));
   }, []);
 
-  useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
-  }, [terminalLines]);
-
-  const selectedCase = useMemo(() => getDemoCaseById(selectedCaseId), [selectedCaseId]);
+  const scenarioId = useMemo(() => resolveHospitalScenario(form.diagnosis, Number(form.requestedAmount)), [form.diagnosis, form.requestedAmount]);
+  const demoCase = getDemoCaseById(scenarioId);
   const workflowClaims = useMemo(
-    () => [...claims].filter((claim) => claim.workflowCaseId).sort((left, right) => new Date(right.submittedAt).getTime() - new Date(left.submittedAt).getTime()),
+    () => [...claims]
+      .filter((claim) => claim.workflowCaseId)
+      .sort((left, right) => new Date(right.submittedAt).getTime() - new Date(left.submittedAt).getTime()),
     [claims],
   );
-  const allUploaded = selectedCase.requiredDocuments.every((item) => uploads[item.slotId]);
+  const selectedClaim = workflowClaims.find((claim) => claim.id === selectedClaimId) ?? workflowClaims[0] ?? null;
+  const averageTat = workflowClaims.length ? `${(workflowClaims.length * 2.4 / workflowClaims.length).toFixed(1)}h` : "2.4h";
+  const approvedToday = workflowClaims.filter((claim) => claim.status === "approved").reduce((sum, claim) => sum + (claim.amountApproved ?? 0), 0);
+  const firstPassRate = workflowClaims.length ? Math.round((workflowClaims.filter((claim) => claim.status === "approved").length / workflowClaims.length) * 100) : 82;
+  const riskClaims = workflowClaims.filter((claim) => claim.status === "under_review" || claim.status === "denied").length;
+  const pendingDocuments = demoCase.requiredDocuments.filter((item) => !uploads[item.slotId] || uploads[item.slotId].status === "missing").length;
+  const readyDocuments = demoCase.requiredDocuments.filter((item) => uploads[item.slotId] && uploads[item.slotId].status !== "scanning").length;
+  const allRequiredUploaded = demoCase.requiredDocuments.every((item) => uploads[item.slotId] && uploads[item.slotId].status !== "scanning");
+  const hasDocumentIssues = demoCase.requiredDocuments.some((item) => uploads[item.slotId]?.status === "issue");
+  const submissionConfidence = scenarioId === "case-3" ? 94 : scenarioId === "case-2" ? 68 : 88;
+  const confidenceTone = submissionConfidence >= 90 ? "green" : submissionConfidence >= 75 ? "blue" : "amber";
+  const uploadCompletionRate = Math.round((readyDocuments / demoCase.requiredDocuments.length) * 100);
+  const latestInsurerMessage = selectedClaim?.timeline.filter((entry) => entry.actor === "insurer").at(-1);
+  const commandStats = [
+    {
+      label: "Live claims",
+      value: workflowClaims.length,
+      tone: "blue" as const,
+      badge: "Queue",
+      helper: "Cases already handed to the insurer queue.",
+      className: "bg-[linear-gradient(180deg,#ffffff_0%,#eaf4ff_100%)]",
+    },
+    {
+      label: "Pending documents",
+      value: pendingDocuments,
+      tone: pendingDocuments > 0 ? "amber" as const : "gray" as const,
+      badge: pendingDocuments > 0 ? "Blocked" : "Clear",
+      helper: pendingDocuments > 0 ? "Missing files are holding submissions back." : "Every required file is already attached.",
+      className: pendingDocuments > 0 ? "bg-[linear-gradient(180deg,#ffffff_0%,#fff4e6_100%)]" : "bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)]",
+    },
+    {
+      label: "Average TAT",
+      value: averageTat,
+      tone: "green" as const,
+      badge: "Speed",
+      helper: "Current adjudication turnaround speed.",
+      className: "bg-[linear-gradient(180deg,#ffffff_0%,#ecfbf1_100%)]",
+    },
+    {
+      label: "Total approved today",
+      value: formatCurrency(approvedToday),
+      tone: "blue" as const,
+      badge: "Released",
+      helper: "Settlement value already cleared today.",
+      className: "bg-[linear-gradient(180deg,#ffffff_0%,#eef6ff_100%)]",
+      valueClassName: "text-[17px] sm:text-[18px]",
+    },
+    {
+      label: "Escalation risk",
+      value: riskClaims,
+      tone: riskClaims > 0 ? "amber" as const : "green" as const,
+      badge: riskClaims > 0 ? "Watch" : "Healthy",
+      helper: riskClaims > 0 ? "Claims likely to need manual insurer scrutiny." : "No high-risk submissions in queue.",
+      className: riskClaims > 0 ? "bg-[linear-gradient(180deg,#ffffff_0%,#fff3ea_100%)]" : "bg-[linear-gradient(180deg,#ffffff_0%,#eefcf4_100%)]",
+    },
+  ];
 
-  const resetCaseWorkspace = (caseId: DemoCaseId) => {
-    setSelectedCaseId(caseId);
-    setActiveDemoCaseId(caseId);
-    setViewer((currentViewer) => resolveViewerForRole("hospital", currentViewer, caseId));
-    setUploads({});
-    setDocPreview({});
-    setTerminalLines([]);
-    setProcessing(false);
-    setProcessed(false);
-    setSubmitting(false);
+  const decisionDesk =
+    activeTab === "submit"
+      ? {
+          tone: !allRequiredUploaded || hasDocumentIssues ? "amber" as const : "green" as const,
+          title: !allRequiredUploaded ? "Submission blocked" : hasDocumentIssues ? "Ready with review note" : "Ready for insurer",
+          summary: !allRequiredUploaded
+            ? "Finish the remaining intake files before you submit this case to the insurer queue."
+            : hasDocumentIssues
+              ? "The claim package is complete, but the document scan suggests the insurer may hold this for clarification."
+              : "The package is complete and aligned. This case is in a strong state for first-pass insurer review.",
+          points: [
+            { label: "Case path", value: demoCase.shortLabel, helper: demoCase.expectedOutcome },
+            { label: "Readiness", value: `${uploadCompletionRate}% complete`, helper: `${readyDocuments} of ${demoCase.requiredDocuments.length} required files are ready.` },
+            {
+              label: "Next action",
+              value: !allRequiredUploaded ? `${pendingDocuments} files remaining` : hasDocumentIssues ? "Expect manual check" : "Submit now",
+              helper: !allRequiredUploaded
+                ? `Add ${demoCase.requiredDocuments.find((item) => !uploads[item.slotId])?.label?.toLowerCase() ?? "the remaining documents"} to unlock submission.`
+                : hasDocumentIssues
+                  ? "Billing or extraction anomalies should be called out in handoff notes."
+                  : "No blocking intake issues are visible right now.",
+            },
+          ],
+        }
+      : selectedClaim
+        ? {
+            tone: statusChipTone(selectedClaim.status),
+            title:
+              selectedClaim.status === "approved"
+                ? "Approved by insurer"
+                : selectedClaim.status === "denied"
+                  ? "Denied by insurer"
+                  : selectedClaim.status === "under_review"
+                    ? "Manual review in progress"
+                    : "Queued with insurer",
+            summary:
+              selectedClaim.decisionNote ??
+              (selectedClaim.status === "approved"
+                ? "This claim has been cleared and settlement instructions are now moving to the provider."
+                : selectedClaim.status === "denied"
+                  ? "The insurer has issued a denial and supporting rationale for this case."
+                  : "The insurer is still working through the case and may request clarifications."),
+            points: [
+              { label: "Claim", value: selectedClaim.id, helper: selectedClaim.patientName },
+              { label: "Requested amount", value: formatCurrency(selectedClaim.amount), helper: `Submitted ${formatRelativeTime(selectedClaim.submittedAt)}` },
+              {
+                label: "Latest insurer note",
+                value: latestInsurerMessage ? formatRelativeTime(latestInsurerMessage.time) : "No note yet",
+                helper: latestInsurerMessage?.label ?? "Waiting for the first insurer update on this case.",
+              },
+            ],
+          }
+        : {
+            tone: "gray" as const,
+            title: "No tracked claim selected",
+            summary: "Pick a submitted case to see its insurer state, recent messages, and required follow-up.",
+            points: [
+              { label: "Queue", value: `${workflowClaims.length} live claims`, helper: "All recent submissions appear in the tracking table below." },
+            ],
+          };
+
+  const snapshotItems =
+    activeTab === "submit"
+      ? [
+          { label: "Submission confidence", value: `${submissionConfidence}%`, helper: "Overall readiness based on documents and scenario quality." },
+          { label: "First-pass approval rate", value: `${firstPassRate}%`, helper: "Recent command-center performance for cleaner submissions." },
+          { label: "Open risk", value: riskClaims > 0 ? `${riskClaims} flagged` : "Low", helper: "Claims likely to need extra insurer attention." },
+        ]
+      : [
+          { label: "Selected patient", value: selectedClaim?.patientName ?? "No claim", helper: selectedClaim?.hospital ?? "Choose a row from the tracking list." },
+          { label: "Current status", value: selectedClaim ? selectedClaim.status.replace("_", " ") : "Idle", helper: selectedClaim ? `Case type: ${selectedClaim.caseType.replace("_", " ")}` : "No insurer workflow selected." },
+          { label: "Progress", value: selectedClaim ? `${trackSteps(selectedClaim).filter((step) => step.state === "complete").length}/5 steps` : "0/5 steps", helper: "End-to-end claim movement through intake and insurer review." },
+        ];
+
+  useEffect(() => {
+    setUploads((current) => {
+      const next = { ...current };
+      for (const key of Object.keys(next)) {
+        if (!demoCase.requiredDocuments.find((item) => item.slotId === key)) {
+          delete next[key];
+        }
+      }
+      return next;
+    });
+  }, [demoCase.requiredDocuments]);
+
+  const updateUploadStatus = (slotId: string, status: UploadStatus) => {
+    setUploads((current) => ({
+      ...current,
+      [slotId]: {
+        ...current[slotId],
+        status,
+      },
+    }));
   };
 
-  const onFileSelect = (slotId: string, file?: File | null) => {
+  const handleFileSelect = (slotId: string, file?: File | null) => {
     if (!file) {
       return;
     }
@@ -116,15 +246,14 @@ export default function HospitalDashboardPage() {
         fileName: file.name,
         type: file.type || "application/pdf",
         size: file.size,
+        status: "scanning",
       },
     }));
-    setProcessed(false);
-  };
 
-  const onFileDrop = (event: DragEvent<HTMLDivElement>, slotId: string) => {
-    event.preventDefault();
-    const file = event.dataTransfer.files?.[0];
-    onFileSelect(slotId, file);
+    window.setTimeout(() => {
+      const shouldFlag = resolveHospitalScenario(form.diagnosis, Number(form.requestedAmount)) === "case-2" && slotId === "billing";
+      updateUploadStatus(slotId, shouldFlag ? "issue" : "ready");
+    }, 1200);
   };
 
   const removeUpload = (slotId: string) => {
@@ -133,272 +262,235 @@ export default function HospitalDashboardPage() {
       delete next[slotId];
       return next;
     });
-    setProcessed(false);
-    setDocPreview({});
-    setTerminalLines([]);
-  };
-
-  const appendTerminal = async (line: string, delayMs: number = 180) => {
-    setTerminalLines((current) => [...current, line]);
-    await sleep(delayMs);
-  };
-
-  const runProcessing = async () => {
-    if (!corpus || !allUploaded || processing) {
-      return;
-    }
-
-    setProcessing(true);
-    setProcessed(false);
-    setTerminalLines([]);
-    setDocPreview(
-      Object.fromEntries(
-        selectedCase.requiredDocuments.map((item) => [
-          item.slotId,
-          {
-            status: "idle",
-            renderedText: "",
-          } satisfies DocPreviewState,
-        ]),
-      ),
-    );
-
-    await appendTerminal("> ClaimHeart intake engine initialised", 260);
-
-    for (const requirement of selectedCase.requiredDocuments) {
-      const previewText = getCaseDocumentPreview(selectedCase, requirement, corpus);
-      const slotUpload = uploads[requirement.slotId];
-
-      setDocPreview((current) => ({
-        ...current,
-        [requirement.slotId]: { status: "scanning", renderedText: "" },
-      }));
-      await appendTerminal(`> Scanning ${requirement.label} (${slotUpload?.fileName || requirement.fileHint})`, 220);
-      await sleep(950);
-
-      setDocPreview((current) => ({
-        ...current,
-        [requirement.slotId]: { status: "extracting", renderedText: "" },
-      }));
-      await appendTerminal(`> Detecting layout blocks for ${requirement.label}`, 180);
-      await appendTerminal(`> Extracting structured text and field entities`, 180);
-      await sleep(500);
-
-      setDocPreview((current) => ({
-        ...current,
-        [requirement.slotId]: { status: "typing", renderedText: "" },
-      }));
-
-      for (let cursor = 0; cursor < previewText.length; cursor += 120) {
-        const nextText = previewText.slice(0, cursor + 120);
-        setDocPreview((current) => ({
-          ...current,
-          [requirement.slotId]: { status: "typing", renderedText: nextText },
-        }));
-        await sleep(14);
-      }
-
-      setDocPreview((current) => ({
-        ...current,
-        [requirement.slotId]: { status: "ready", renderedText: previewText },
-      }));
-      await appendTerminal(`> ${requirement.label} packaged for adjudication`, 220);
-    }
-
-    await appendTerminal("> All source documents extracted successfully", 260);
-    await appendTerminal("> Intake package ready for insurer review", 260);
-    setProcessing(false);
-    setProcessed(true);
-    toast.success("Documents processed and staged for insurer review.");
   };
 
   const handleSubmit = async () => {
-    if (!corpus || !processed || submitting) {
+    if (!allRequiredUploaded || !corpusLoaded || submitting) {
       return;
     }
 
     try {
       setSubmitting(true);
-      const orderedUploads = selectedCase.requiredDocuments.map((item) => uploads[item.slotId]) as DemoUploadSelection[];
+      setActiveDemoCaseId(scenarioId);
+      const corpus = await loadDemoDocumentCorpus();
+      const uploadPayload = demoCase.requiredDocuments.map<DemoUploadSelection>((item) => ({
+        slotId: item.slotId,
+        fileName: uploads[item.slotId].fileName,
+        type: uploads[item.slotId].type,
+        size: uploads[item.slotId].size,
+      }));
+
       const claimInput = createWorkflowClaimInput({
-        demoCase: selectedCase,
-        uploads: orderedUploads,
+        demoCase,
+        uploads: uploadPayload,
         corpus,
       });
+
+      claimInput.patientName = form.patientName;
+      claimInput.policyNumber = form.policyNumber;
+      claimInput.hospital = form.hospital;
+      claimInput.diagnosis = form.diagnosis;
+      claimInput.amount = Number(form.requestedAmount);
+
       const claim = await submitClaim(claimInput);
-      toast.success(`Claim ${claim.id} submitted successfully. The insurer can review it from their dashboard.`);
+      setSelectedClaimId(claim.id);
+      setActiveTab("track");
+      toast.success(`Claim ${claim.id} sent to the insurer queue.`);
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (!ready || !viewer || !corpus) {
+  if (!ready || !viewer) {
     return (
-      <div className="space-y-6">
-        <div className="space-y-3"><SkeletonBlock className="h-9 w-56" /><SkeletonBlock className="h-5 w-80" /></div>
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-6"><SkeletonCard lines={5} /><SkeletonCard lines={6} /></div>
-          <div className="space-y-6"><SkeletonCard lines={4} /><SkeletonCard lines={4} /></div>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <SkeletonBlock className="h-10 w-72" />
+          <SkeletonBlock className="h-5 w-64" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => <SkeletonCard key={index} lines={2} />)}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-[linear-gradient(135deg,#08111f_0%,#133b67_54%,#edf4fb_54%,#f8fafc_100%)] shadow-[0_24px_60px_rgba(15,23,42,0.14)]">
-        <div className="grid gap-8 px-6 py-7 sm:px-8 lg:grid-cols-[1.15fr_0.85fr] lg:px-10 lg:py-10">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
-              <ShieldCheck className="h-3.5 w-3.5" /> Hospital Intake Workspace
-            </div>
-            <h1 className="mt-5 max-w-2xl text-3xl font-bold tracking-[-0.05em] text-white sm:text-[2.6rem]">
-              Structured intake, cleaner uploads, and a review handoff that feels product-ready.
-            </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/74 sm:text-base">
-              Build the claim package, process the uploaded documents on screen, and hand the case to the insurer without breaking the flow.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3 text-sm text-white/78">
-              <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2">Hospital: {viewer.name}</span>
-              <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2">Doctor: {selectedCase.hospital.doctor}</span>
-              <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2">City: {selectedCase.hospital.city}</span>
+    <div className="relative isolate space-y-5 lg:space-y-6">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[320px] bg-[radial-gradient(circle_at_top_left,rgba(90,151,216,0.14),transparent_40%),radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_34%)]" />
+
+      <DashboardCard visual="plain" surfaceClassName="bg-[linear-gradient(132deg,#0e2e4f_0%,#13548a_48%,#1d7ca8_100%)]" className="overflow-hidden border-slate-800/10 text-white shadow-[0_24px_60px_rgba(16,35,60,0.2)]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/65">Hospital operations cockpit</p>
+            <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-white">Submit cleaner claims, spot document gaps early, and track insurer responses without leaving the dashboard.</h2>
+            <p className="mt-3 text-sm leading-6 text-white/78">This workspace keeps intake simple, surfaces submission quality in real time, and helps hospital teams avoid preventable review delays.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <div className="rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/86">
+                {readyDocuments} of {demoCase.requiredDocuments.length} documents ready
+              </div>
+              <div className="rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/86">
+                Confidence {submissionConfidence}%
+              </div>
+              <div className="rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/86">
+                {averageTat} average turnaround
+              </div>
+              <div className="rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white/86">
+                {firstPassRate}% first-pass approval
+              </div>
             </div>
           </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-wrap gap-2">
             {[
-              { label: "Live Claims", value: workflowClaims.length, helper: "Shared with patient and insurer views" },
-              { label: "Required Files", value: selectedCase.requiredDocuments.length, helper: "Checklist for this case" },
-              { label: "Expected Outcome", value: selectedCase.finalDecisionLabel, helper: selectedCase.expectedOutcome },
-              { label: "Requested Amount", value: `Rs ${selectedCase.amount.toLocaleString("en-IN")}`, helper: selectedCase.summary },
-            ].map((item) => (
-              <div key={item.label} className="rounded-[1.6rem] border border-slate-200/70 bg-white/88 p-5 backdrop-blur">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--ch-subtle)]">{item.label}</p>
-                <p className="mt-3 text-xl font-bold tracking-[-0.04em] text-slate-900">{item.value}</p>
-                <p className="mt-2 text-sm leading-6 text-[var(--ch-muted)]">{item.helper}</p>
-              </div>
+              { key: "submit", label: "Submit claim" },
+              { key: "track", label: "Track claims" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key as "submit" | "track")}
+                className={`rounded-full px-3 py-1.5 text-[12px] font-medium transition ${activeTab === tab.key ? "bg-white text-[var(--ch-blue-dark)] shadow-[0_14px_28px_rgba(16,35,60,0.2)]" : "border border-white/14 bg-white/10 text-white/80 hover:bg-white/16"}`}
+              >
+                {tab.label}
+              </button>
             ))}
           </div>
         </div>
-      </section>
+      </DashboardCard>
 
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
-          <MotionCard className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 md:text-[1.45rem]">Choose Workflow</h2>
-                <p className="mt-1 text-sm text-[var(--ch-muted)]">Each case drives a different rule path so the downstream review feels purposeful and realistic.</p>
-              </div>
-              <div className="rounded-full border border-[var(--ch-blue-border)] bg-[var(--ch-blue-light)] px-4 py-2 text-sm font-semibold text-[var(--ch-blue-dark)]">
-                Active case: {selectedCase.shortLabel}
-              </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        {commandStats.map((item) => (
+          <MetricCard
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            helper={item.helper}
+            tone={item.tone}
+            badge={item.badge}
+            className={item.className}
+            valueClassName={item.valueClassName}
+          />
+        ))}
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <DecisionSupportCard eyebrow="Decision board" title={decisionDesk.title} summary={decisionDesk.summary} tone={decisionDesk.tone} points={decisionDesk.points} />
+
+        <DashboardCard className="bg-[linear-gradient(180deg,#ffffff_0%,#f7fbff_100%)]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-500">Operations snapshot</p>
+              <p className="mt-2 text-[20px] font-semibold tracking-[-0.04em] text-slate-900">
+                {activeTab === "submit" ? "See submission strength before you hand off the case." : "Stay ahead of insurer messages and case movement."}
+              </p>
             </div>
+            <StatusChip label={activeTab === "submit" ? "Intake" : "Tracking"} tone={activeTab === "submit" ? "blue" : "green"} />
+          </div>
 
-            <div className="mt-6 grid gap-4 lg:grid-cols-3">
-              {DEMO_WORKFLOW_CASES.map((item) => {
-                const active = item.id === selectedCaseId;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => resetCaseWorkspace(item.id)}
-                    className={`group rounded-[1.5rem] border p-5 text-left transition-all ${active ? "border-[var(--ch-blue)] bg-[linear-gradient(180deg,rgba(74,142,219,0.10),#ffffff)] shadow-[0_14px_28px_rgba(74,142,219,0.15)]" : "border-slate-200 bg-slate-50 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white">{item.shortLabel}</span>
-                      <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${statusTone[item.finalStatus]}`}>{item.finalDecisionLabel}</span>
-                    </div>
-                    <h3 className="mt-4 text-lg font-bold tracking-[-0.03em] text-slate-900">{item.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-[var(--ch-muted)]">{item.summary}</p>
-                    <div className="mt-5 flex items-center gap-2 text-sm font-semibold text-[var(--ch-blue)]">
-                      {active ? "Selected workflow" : "Switch to this workflow"}
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </div>
-                  </button>
-                );
-              })}
+          <div className="mt-4 space-y-3">
+            {snapshotItems.map((item) => (
+              <div key={item.label} className="rounded-[16px] border border-slate-200 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{item.label}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{item.value}</p>
+                <p className="mt-1 text-[12px] leading-5 text-slate-500">{item.helper}</p>
+              </div>
+            ))}
+          </div>
+        </DashboardCard>
+      </div>
+
+      {activeTab === "submit" ? (
+        <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+          <DashboardCard className="bg-[linear-gradient(180deg,#ffffff_0%,var(--ch-blue-light)_100%)]">
+            <p className="text-[14px] font-medium text-slate-900">Patient and claim details</p>
+            <p className="mt-1 text-[12px] text-slate-500">Capture the essentials here. The document checklist on the right controls readiness and submission confidence.</p>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <label className="text-[12px] text-slate-600">
+                Patient name
+                <input value={form.patientName} onChange={(event) => setForm((current) => ({ ...current, patientName: event.target.value }))} className="mt-1 h-11 w-full rounded-[14px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--ch-blue)]" />
+              </label>
+              <label className="text-[12px] text-slate-600">
+                Policy number
+                <input value={form.policyNumber} onChange={(event) => setForm((current) => ({ ...current, policyNumber: event.target.value }))} className="mt-1 h-11 w-full rounded-[14px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--ch-blue)]" />
+              </label>
+              <label className="text-[12px] text-slate-600">
+                Hospital
+                <input value={form.hospital} onChange={(event) => setForm((current) => ({ ...current, hospital: event.target.value }))} className="mt-1 h-11 w-full rounded-[14px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--ch-blue)]" />
+              </label>
+              <label className="text-[12px] text-slate-600">
+                Requested amount
+                <input value={form.requestedAmount} type="number" onChange={(event) => setForm((current) => ({ ...current, requestedAmount: Number(event.target.value) }))} className="mt-1 h-11 w-full rounded-[14px] border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[var(--ch-blue)]" />
+              </label>
+              <label className="text-[12px] text-slate-600 md:col-span-2">
+                Diagnosis
+                <textarea value={form.diagnosis} onChange={(event) => setForm((current) => ({ ...current, diagnosis: event.target.value }))} className="mt-1 min-h-32 w-full rounded-[14px] border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[var(--ch-blue)]" />
+              </label>
             </div>
-          </MotionCard>
+          </DashboardCard>
 
-          <div className="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
-            <MotionCard className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:p-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-4">
+            <DashboardCard>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 md:text-[1.45rem]">Claim Intake Pack</h2>
-                  <p className="mt-1 text-sm text-[var(--ch-muted)]">Attach the source documents, then convert them into a structured package before you submit the claim.</p>
+                  <p className="text-[14px] font-medium text-slate-900">Document checklist</p>
+                  <p className="mt-1 text-[12px] text-slate-500">Files move from missing to scanning to ready, and flagged fields stay visible without crowding the main flow.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={runProcessing}
-                  disabled={!allUploaded || processing}
-                  className="inline-flex h-11 min-w-[160px] shrink-0 items-center justify-center whitespace-nowrap rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  {processing ? "Scanning..." : "Run Intake Scan"}
-                </button>
+                <StatusChip label={`${readyDocuments} of ${demoCase.requiredDocuments.length} ready`} tone={readyDocuments === demoCase.requiredDocuments.length ? "green" : "amber"} />
               </div>
 
-              <div className="mt-6 space-y-4">
-                {selectedCase.requiredDocuments.map((requirement) => {
-                  const uploaded = uploads[requirement.slotId];
+              <div className="mt-4 space-y-3">
+                {demoCase.requiredDocuments.map((requirement) => {
+                  const upload = uploads[requirement.slotId];
+                  const status = upload?.status ?? "missing";
+                  const toneWrap =
+                    status === "ready"
+                      ? "bg-green-50 text-green-700"
+                      : status === "issue"
+                        ? "bg-red-50 text-red-600"
+                        : status === "scanning"
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-slate-100 text-slate-500";
+
                   return (
-                    <div
-                      key={requirement.slotId}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => onFileDrop(event, requirement.slotId)}
-                      className={`rounded-[1.5rem] border p-5 transition-all ${uploaded ? "border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_12px_28px_rgba(15,23,42,0.05)]" : "border-dashed border-[var(--ch-blue-border)] bg-[linear-gradient(180deg,#f8fbff_0%,#eef4fd_100%)] hover:border-[var(--ch-blue)] hover:bg-white"}`}
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${uploaded ? "bg-emerald-100 text-emerald-700" : "bg-white text-[var(--ch-blue)] shadow-[0_10px_24px_rgba(74,142,219,0.12)]"}`}>
-                          {uploaded ? <CheckCircle2 className="h-5 w-5" /> : <UploadCloud className="h-5 w-5" />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <p className="text-lg font-bold tracking-[-0.03em] text-slate-900">{requirement.label}</p>
-                            {uploaded ? (
-                              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Attached to intake package
-                              </span>
+                    <div key={requirement.slotId} className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="flex items-start gap-3">
+                          <div className={`flex h-9 w-9 items-center justify-center rounded-full ${toneWrap}`}>
+                            {status === "ready" ? (
+                              <Check className="h-4 w-4" />
+                            ) : status === "issue" ? (
+                              <AlertTriangle className="h-4 w-4" />
+                            ) : status === "scanning" ? (
+                              <LoaderCircle className="h-4 w-4 animate-spin" />
                             ) : (
-                              <span className="rounded-full border border-[var(--ch-blue-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--ch-blue-dark)]">
-                                Ready for upload
-                              </span>
+                              <Minus className="h-4 w-4" />
                             )}
                           </div>
-                          <p className="mt-2 text-sm leading-6 text-[var(--ch-muted)]">{uploaded ? "The file is attached and queued for structured extraction." : `Recommended file: ${requirement.fileHint}`}</p>
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{requirement.label}</p>
+                            <p className="mt-1 text-[12px] text-slate-500">
+                              {upload ? `${upload.fileName} - ${Math.max(1, Math.round(upload.size / 1024))} KB` : "No file uploaded yet"}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-
-                      <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                        <div className={`rounded-[1.2rem] border px-4 py-3 ${uploaded ? "border-slate-200 bg-white" : "border-white/80 bg-white/85"}`}>
-                          {uploaded ? (
-                            <>
-                              <p className="truncate text-sm font-semibold text-slate-900">{uploaded.fileName}</p>
-                              <p className="mt-1 text-xs text-[var(--ch-muted)]">{formatFileSize(uploaded.size)} · {uploaded.type || "application/pdf"}</p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-sm font-semibold text-slate-900">No file attached yet</p>
-                              <p className="mt-1 text-xs text-[var(--ch-muted)]">Select a file or drop it here to add it to the intake package.</p>
-                            </>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2">
-                          <label className={`inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition-all ${uploaded ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50" : "bg-[var(--ch-blue)] text-white hover:opacity-95"}`}>
-                            {uploaded ? <RefreshCcw className="h-4 w-4" /> : <UploadCloud className="h-4 w-4" />}
-                            {uploaded ? "Replace" : "Upload"}
-                            <input type="file" className="hidden" onChange={(event) => onFileSelect(requirement.slotId, event.target.files?.[0])} />
+                        <div className="flex flex-wrap gap-2">
+                          <label className="inline-flex cursor-pointer items-center gap-1 rounded-[12px] border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700">
+                            <Upload className="h-3.5 w-3.5" />
+                            {upload ? "Replace" : "Upload"}
+                            <input type="file" className="hidden" onChange={(event) => handleFileSelect(requirement.slotId, event.target.files?.[0])} />
                           </label>
-                          {uploaded ? (
-                            <button
-                              type="button"
-                              onClick={() => removeUpload(requirement.slotId)}
-                              className="inline-flex h-11 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-600 transition-all hover:bg-rose-100"
-                            >
-                              Remove
-                            </button>
+                          {status !== "missing" ? (
+                            <>
+                              {(status === "ready" || status === "issue") ? (
+                                <button type="button" onClick={() => setPreviewDocId(requirement.slotId)} className="rounded-[12px] border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700">
+                                  Preview extraction
+                                </button>
+                              ) : null}
+                              <button type="button" onClick={() => removeUpload(requirement.slotId)} className="rounded-[12px] border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
                           ) : null}
                         </div>
                       </div>
@@ -407,216 +499,217 @@ export default function HospitalDashboardPage() {
                 })}
               </div>
 
-              <div className="mt-6 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">Submission handoff</p>
-                    <p className="mt-1 text-sm text-[var(--ch-muted)]">Process the documents first, then send the structured case for insurer review.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={!processed || submitting}
-                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-[var(--ch-blue)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(74,142,219,0.18)] transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    {submitting ? "Submitting..." : "Submit Claim"}
-                  </button>
-                </div>
-              </div>
-            </MotionCard>
+              <p className="mt-4 text-[12px] text-slate-600">
+                {readyDocuments} of {demoCase.requiredDocuments.length} documents ready
+                {readyDocuments === demoCase.requiredDocuments.length ? " - ready for insurer submission." : ` - upload ${demoCase.requiredDocuments.find((item) => !uploads[item.slotId])?.label?.toLowerCase() ?? "remaining documents"} to proceed.`}
+              </p>
+            </DashboardCard>
 
-            <MotionCard className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--ch-blue-light)] text-[var(--ch-blue)]">
-                  <WandSparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 md:text-[1.45rem]">Workflow Brief</h2>
-                  <p className="mt-1 text-sm text-[var(--ch-muted)]">A short, clean explanation of what this case is expected to prove.</p>
-                </div>
+            <DashboardCard className="bg-[linear-gradient(180deg,#ffffff_0%,#f3f9ff_100%)]">
+              <p className="text-[14px] font-medium text-slate-900">Submission confidence</p>
+              <p className="mt-1 text-[12px] text-slate-500">
+                Confidence {submissionConfidence}% - {scenarioId === "case-3" ? "All documents verified, no billing anomalies detected." : scenarioId === "case-2" ? "Billing amount exceeds the allowed treatment pattern and should be reviewed." : "Coverage timing may require policy continuity proof."}
+              </p>
+              <div className="mt-4">
+                <ConfidenceBar label="Confidence" value={submissionConfidence} tone={confidenceTone} />
               </div>
+            </DashboardCard>
 
-              <div className="mt-6 rounded-[1.5rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] p-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--ch-subtle)]">Selected case</p>
-                <h3 className="mt-3 text-lg font-bold tracking-[-0.03em] text-slate-900">{selectedCase.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[var(--ch-muted)]">{selectedCase.narrative}</p>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {selectedCase.queueHighlights.map((item) => (
-                  <div key={item} className="flex gap-3 rounded-[1.2rem] border border-slate-100 bg-slate-50 px-4 py-3">
-                    <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[var(--ch-blue)]" />
-                    <p className="text-sm leading-6 text-slate-700">{item}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-950 p-4 text-slate-100">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Expected review flow</p>
-                <div className="mt-4 space-y-3">
-                  {selectedCase.pipelineSummary.map((item, index) => (
-                    <div key={item} className="flex gap-3 text-sm leading-6 text-slate-200">
-                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold">{index + 1}</span>
-                      <p>{item}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </MotionCard>
+            <ActionPanel>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!allRequiredUploaded || submitting}
+                title={!allRequiredUploaded ? "Upload every required document before submitting." : undefined}
+                className="w-full rounded-[14px] bg-[var(--ch-blue)] px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_28px_rgba(90,151,216,0.22)] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {submitting ? "Submitting..." : "Submit to insurer"}
+              </button>
+              {!allRequiredUploaded ? (
+                <p className="mt-2 text-[11px] text-slate-500">All required documents must finish uploading before submission.</p>
+              ) : hasDocumentIssues ? (
+                <p className="mt-2 text-[11px] text-amber-700">One document has a field that should be checked by the insurer during review.</p>
+              ) : null}
+            </ActionPanel>
           </div>
-
-          <MotionCard className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 md:text-[1.45rem]">OCR And Extraction Preview</h2>
-                <p className="mt-1 text-sm text-[var(--ch-muted)]">Each file advances through scanning, extraction, and text assembly on screen.</p>
-              </div>
-              <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600">
-                {processing ? "Extraction in progress" : processed ? "Extraction complete" : "Waiting to start"}
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 xl:grid-cols-[1.04fr_0.96fr]">
-              <div className="space-y-4">
-                {selectedCase.requiredDocuments.map((requirement) => {
-                  const preview = docPreview[requirement.slotId];
-                  const isBusy = preview?.status === "scanning" || preview?.status === "extracting" || preview?.status === "typing";
-                  return (
-                    <div key={requirement.slotId} className="overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50">
-                      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[var(--ch-blue-light)] text-[var(--ch-blue)]">
-                            <FileDigit className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-900">{requirement.label}</p>
-                            <p className="text-xs text-[var(--ch-muted)]">{uploads[requirement.slotId]?.fileName || requirement.fileHint}</p>
-                          </div>
-                        </div>
-                        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${preview?.status === "ready" ? "bg-emerald-50 text-emerald-700" : isBusy ? "bg-[var(--ch-blue-light)] text-[var(--ch-blue-dark)]" : "bg-slate-100 text-slate-500"}`}>
-                          {preview?.status || "idle"}
-                        </span>
-                      </div>
-
-                      <div className="p-4">
-                        {preview?.status === "scanning" ? (
-                          <div className="relative h-20 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                            <motion.div
-                              initial={{ y: -20 }}
-                              animate={{ y: 84 }}
-                              transition={{ duration: 1.4, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                              className="absolute left-4 right-4 h-1 rounded-full bg-[linear-gradient(90deg,transparent,#4a8edb,transparent)] shadow-[0_0_20px_rgba(74,142,219,0.45)]"
-                            />
-                            <div className="absolute inset-x-0 bottom-4 text-center text-xs font-medium uppercase tracking-[0.14em] text-slate-500">Scanning document layers</div>
-                          </div>
-                        ) : preview?.status === "extracting" ? (
-                          <div className="flex h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4">
-                            <motion.div
-                              animate={{ rotate: 360 }}
-                              transition={{ duration: 0.8, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                              className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-slate-200 border-t-[var(--ch-blue)]"
-                            >
-                              <span className="sr-only">Extracting</span>
-                            </motion.div>
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">Extracting fields</p>
-                              <p className="mt-1 text-sm text-[var(--ch-muted)]">Classifying headings, values, and policy references.</p>
-                            </div>
-                          </div>
-                        ) : preview?.renderedText ? (
-                          <pre className="max-h-[22rem] overflow-auto whitespace-pre-wrap rounded-2xl border border-slate-200 bg-white p-4 text-[12px] leading-6 text-slate-700 sm:text-[13px]">{preview.renderedText}</pre>
-                        ) : (
-                          <div className="flex h-20 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm text-[var(--ch-muted)]">
-                            Upload and process to preview extracted text.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-950 p-4 text-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-slate-100">
-                    <FileSearch className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">Pipeline Console</p>
-                    <p className="text-sm text-slate-400">Live extraction logs and structured handoff</p>
-                  </div>
-                </div>
-                <div ref={terminalRef} className="mt-4 h-[28rem] overflow-auto rounded-[1.2rem] border border-white/8 bg-black/20 p-4 font-mono text-[12px] leading-6 text-emerald-300 sm:text-[13px]">
-                  <AnimatePresence initial={false}>
-                    {terminalLines.length === 0 ? (
-                      <p className="text-slate-500">No logs yet. Run document processing to populate the intake console.</p>
-                    ) : (
-                      terminalLines.map((line, index) => (
-                        <motion.p key={`${line}-${index}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="break-words">
-                          {line}
-                        </motion.p>
-                      ))
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-            </div>
-          </MotionCard>
         </div>
-
-        <div className="space-y-6">
-          <MotionCard className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--ch-blue-light)] text-[var(--ch-blue)]">
-                <Clock3 className="h-5 w-5" />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <DashboardCard className="overflow-hidden p-0">
+            <div className="hidden lg:block">
+              <div className="grid grid-cols-[1fr_1fr_0.9fr_0.9fr_0.8fr_0.8fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] uppercase tracking-[0.08em] text-slate-500">
+                <span>Claim ID</span>
+                <span>Patient</span>
+                <span>Type</span>
+                <span>Requested</span>
+                <span>Status</span>
+                <span>Days</span>
               </div>
               <div>
-                <h2 className="text-xl font-bold text-slate-900 md:text-[1.45rem]">Recent Workflow Claims</h2>
-                <p className="mt-1 text-sm text-[var(--ch-muted)]">Fresh submissions appear here and continue syncing across tabs.</p>
+                {workflowClaims.length === 0 ? (
+                  <div className="p-4 text-sm text-slate-500">Submitted claims will appear here.</div>
+                ) : (
+                  workflowClaims.map((claim) => (
+                    <button
+                      key={claim.id}
+                      type="button"
+                      onClick={() => setSelectedClaimId(claim.id)}
+                      className={`grid w-full grid-cols-[1fr_1fr_0.9fr_0.9fr_0.8fr_0.8fr] gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm ${selectedClaim?.id === claim.id ? "bg-[var(--ch-blue-light)]" : "bg-white hover:bg-slate-50"}`}
+                    >
+                      <span className="font-medium text-slate-900">{claim.id}</span>
+                      <span className="text-slate-700">{claim.patientName}</span>
+                      <span className="text-slate-600 capitalize">{claim.caseType.replace("_", " ")}</span>
+                      <span className="text-slate-700">{formatCurrency(claim.amount)}</span>
+                      <span><StatusChip label={claim.status.replace("_", " ")} tone={statusChipTone(claim.status)} /></span>
+                      <span className="text-slate-500">{Math.max(1, Math.ceil((Date.now() - new Date(claim.submittedAt).getTime()) / 86400000))}</span>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
 
-            <div className="mt-6 space-y-4">
+            <div className="space-y-3 p-4 lg:hidden">
               {workflowClaims.length === 0 ? (
-                <div className="rounded-[1.4rem] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm leading-6 text-[var(--ch-muted)]">
-                  No claim has been submitted yet. Process a case and submit it here so the insurer can open their dashboard and start review when ready.
+                <div className="text-sm text-slate-500">Submitted claims will appear here.</div>
+              ) : (
+                workflowClaims.map((claim) => (
+                  <button
+                    key={`mobile-${claim.id}`}
+                    type="button"
+                    onClick={() => setSelectedClaimId(claim.id)}
+                    className={`w-full rounded-[14px] border p-3 text-left ${selectedClaim?.id === claim.id ? "border-[var(--ch-blue-border)] bg-[var(--ch-blue-light)]" : "border-slate-200 bg-white"}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">{claim.id}</p>
+                        <p className="mt-1 text-[12px] text-slate-500">{claim.patientName}</p>
+                      </div>
+                      <StatusChip label={claim.status.replace("_", " ")} tone={statusChipTone(claim.status)} />
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 text-[12px] text-slate-600">
+                      <p>Requested: {formatCurrency(claim.amount)}</p>
+                      <p>Type: {claim.caseType.replace("_", " ")}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </DashboardCard>
+
+          <DashboardCard>
+            {selectedClaim ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-[15px] font-semibold text-slate-900">{selectedClaim.patientName}</p>
+                  <p className="mt-1 text-[12px] text-slate-500">{selectedClaim.id} - {selectedClaim.hospital}</p>
                 </div>
-              ) : workflowClaims.slice(0, 4).map((claim: Claim) => (
-                <Link key={claim.id} href={`/dashboard/hospital/claims/${claim.id}`} className="block rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4 transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_10px_22px_rgba(15,23,42,0.06)]">
+                <StepTracker steps={trackSteps(selectedClaim)} activeIndex={trackSteps(selectedClaim).findIndex((step) => step.state === "active")} />
+                <div>
+                  <p className="text-[12px] font-medium text-slate-900">Insurer messages</p>
+                  <div className="mt-3 space-y-2">
+                    {selectedClaim.timeline.filter((entry) => entry.actor === "insurer").length === 0 ? (
+                      <p className="text-sm text-slate-500">No insurer messages yet.</p>
+                    ) : (
+                      selectedClaim.timeline
+                        .filter((entry) => entry.actor === "insurer")
+                        .map((entry, index) => (
+                          <div key={`${entry.time}-${index}`} className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-sm text-slate-700">{entry.label}</p>
+                            <p className="mt-1 text-[11px] text-slate-500">{formatRelativeTime(entry.time)}</p>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex min-h-[240px] flex-col items-center justify-center text-center">
+                <CircleDashed className="h-6 w-6 text-slate-400" />
+                <p className="mt-3 text-sm text-slate-500">Select a submitted claim to see its progress.</p>
+              </div>
+            )}
+          </DashboardCard>
+        </div>
+      )}
+
+      {previewDocId ? (
+        <>
+          <button type="button" className="fixed inset-0 z-40 bg-slate-950/30" onClick={() => setPreviewDocId(null)} aria-label="Close extraction preview" />
+          <aside className="fixed right-0 top-0 z-50 h-screen w-full max-w-[560px] overflow-y-auto border-l border-slate-200 bg-white p-4 shadow-[-12px_0_30px_rgba(15,23,42,0.14)]">
+            {(() => {
+              const requirement = demoCase.requiredDocuments.find((item) => item.slotId === previewDocId);
+              const upload = previewDocId ? uploads[previewDocId] : null;
+              if (!requirement || !upload) {
+                return null;
+              }
+
+              const fields = [
+                { label: "Patient name", value: form.patientName },
+                { label: "ICD-10", value: demoCase.icdCode, lowConfidence: previewDocId === "billing" && scenarioId === "case-2" },
+                { label: "Admission date", value: "05 Apr 2026" },
+                { label: "Discharge date", value: "06 Apr 2026" },
+              ];
+              const billingRows = previewDocId === "billing"
+                ? [
+                    { item: "Room charges", amount: 6850 },
+                    { item: "PlateMax dose 1", amount: 4200 },
+                    { item: "PlateMax dose 2", amount: 4200 },
+                    { item: "PlateMax dose 3", amount: scenarioId === "case-3" ? 0 : 4200 },
+                  ]
+                : [];
+
+              return (
+                <div className="space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-slate-900">{claim.id}</p>
-                      <p className="mt-1 text-sm text-[var(--ch-muted)]">{claim.patientName} · {claim.caseLabel || claim.diagnosis}</p>
+                      <p className="text-[14px] font-medium text-slate-900">{requirement.label}</p>
+                      <p className="mt-1 text-[12px] text-slate-500">{upload.fileName}</p>
                     </div>
-                    <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${statusTone[claim.status]}`}>{claim.status.replace("_", " ")}</span>
+                    <button type="button" onClick={() => setPreviewDocId(null)} className="rounded-[12px] border border-slate-200 px-3 py-1 text-[12px] text-slate-600">
+                      Close
+                    </button>
                   </div>
-                  <p className="mt-3 text-sm text-[var(--ch-subtle)]">Rs {claim.amount.toLocaleString("en-IN")} · {claim.workflowState?.replaceAll("_", " ") || "submitted"}</p>
-                </Link>
-              ))}
-            </div>
-          </MotionCard>
-
-          <RecentActivityCard role="hospital" identity={viewer.name} />
-
-          <MotionCard className="rounded-[1.8rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f4f8fd)] p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:p-6">
-            <h2 className="text-xl font-bold text-slate-900 md:text-[1.45rem]">Narration Cheat Sheet</h2>
-            <div className="mt-5 space-y-3">
-              {[
-                selectedCase.requestedAtLabel,
-                `Patient on file: ${selectedCase.patient.name} · Policy ${selectedCase.patient.policyNumber}`,
-                `Expected adjudication result: ${selectedCase.finalDecisionLabel}`,
-              ].map((item) => (
-                <div key={item} className="flex gap-3 rounded-[1.2rem] border border-white/70 bg-white px-4 py-3">
-                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[var(--ch-blue)]" />
-                  <p className="text-sm leading-6 text-slate-700">{item}</p>
+                  <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+                    <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-[12px] font-medium text-slate-900">Document thumbnail</p>
+                      <div className="mt-3 flex h-[220px] items-center justify-center rounded-[14px] border border-dashed border-slate-300 bg-white text-[12px] text-slate-400">
+                        {requirement.label}
+                      </div>
+                    </div>
+                    <div className="rounded-[14px] border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-[12px] font-medium text-slate-900">Extracted fields</p>
+                      <div className="mt-3 space-y-2">
+                        {fields.map((field) => (
+                          <div key={field.label} className={`rounded-[14px] border p-3 ${field.lowConfidence ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[12px] text-slate-500">{field.label}</p>
+                              {field.lowConfidence ? <span className="text-[11px] text-amber-700">Verify this field</span> : null}
+                            </div>
+                            <p className="mt-1 text-sm text-slate-800">{field.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {billingRows.length ? (
+                        <div className="mt-4">
+                          <p className="text-[12px] font-medium text-slate-900">Billing line items</p>
+                          <div className="mt-2 overflow-hidden rounded-[14px] border border-slate-200 bg-white">
+                            {billingRows.map((row) => (
+                              <div key={row.item} className="flex items-center justify-between border-b border-slate-100 px-3 py-2 text-sm last:border-b-0">
+                                <span className="text-slate-700">{row.item}</span>
+                                <span className="text-slate-900">{formatCurrency(row.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </MotionCard>
-        </div>
-      </section>
+              );
+            })()}
+          </aside>
+        </>
+      ) : null}
     </div>
   );
 }
-
-

@@ -164,7 +164,7 @@ export const testimonials = [
     avatarBg: "bg-amber-500",
   },
   {
-    name: "Urja Gunjan",
+    name: "Simran Kukreja",
     role: "Patient Experience Architect",
     company: "Care Operations Program",
     text: "Most platforms stop at internal processing. ClaimHeart stands out because it extends the experience through patient-facing clarity, communication, and a much more transparent decision trail.",

@@ -12,6 +12,9 @@ type AuthProviderButtonsProps = {
   mode: "login" | "signup";
   onSelect: (provider: AuthProvider) => void;
   className?: string;
+  providers?: AuthProvider[];
+  variant?: "icon" | "full";
+  showLabel?: boolean;
 };
 
 const PROVIDERS: Array<{
@@ -23,26 +26,43 @@ const PROVIDERS: Array<{
   { id: "microsoft", icon: MicrosoftIcon },
 ];
 
-export default function AuthProviderButtons({ mode, onSelect, className = "" }: AuthProviderButtonsProps) {
+export default function AuthProviderButtons({
+  mode,
+  onSelect,
+  className = "",
+  providers,
+  variant = "icon",
+  showLabel = true,
+}: AuthProviderButtonsProps) {
   const label = mode === "login" ? "Continue with" : "Sign up with";
+  const activeProviders = providers?.length
+    ? PROVIDERS.filter(({ id }) => providers.includes(id))
+    : PROVIDERS;
 
   return (
     <div className={["space-y-3", className].filter(Boolean).join(" ")}>
-      <p className="text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--ch-subtle)]">
-        {label}
-      </p>
+      {showLabel ? (
+        <p className="text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--ch-subtle)]">
+          {label}
+        </p>
+      ) : null}
 
-      <div className="flex items-center justify-center gap-3">
-        {PROVIDERS.map(({ id, icon: Icon }) => (
+      <div className={variant === "full" ? "space-y-2" : "flex items-center justify-center gap-3"}>
+        {activeProviders.map(({ id, icon: Icon }) => (
           <button
             key={id}
             type="button"
             onClick={() => onSelect(id)}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-[0_8px_18px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+            className={
+              variant === "full"
+                ? "inline-flex h-11 w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 shadow-[0_8px_18px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+                : "inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-[0_8px_18px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+            }
             aria-label={`${label} ${AUTH_PROVIDER_LABELS[id]}`}
             title={`${label} ${AUTH_PROVIDER_LABELS[id]}`}
           >
             <Icon className="h-5 w-5" />
+            {variant === "full" ? <span>{label} {AUTH_PROVIDER_LABELS[id]}</span> : null}
             <span className="sr-only">
               {label} {AUTH_PROVIDER_LABELS[id]}
             </span>

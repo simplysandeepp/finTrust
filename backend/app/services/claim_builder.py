@@ -11,7 +11,10 @@ def build_unified_claim(ocr_data):
     }
 
     # disease extraction from OCR
-    if "diagnosis" in ocr_data and ocr_data["diagnosis"]:
+    if ocr_data.get("disease"):
+        claim["disease"] = ocr_data["disease"]
+        claim["has_prescription"] = True
+    elif "diagnosis" in ocr_data and ocr_data["diagnosis"]:
         claim["disease"] = ocr_data["diagnosis"][0]
         claim["has_prescription"] = True
 
@@ -24,5 +27,8 @@ def build_unified_claim(ocr_data):
     if "total_amount" in ocr_data and ocr_data["total_amount"]:
         claim["amount"] = ocr_data["total_amount"].get("total_billed")
         claim["has_billing"] = True
+    elif ocr_data.get("billing_items"):
+        claim["amount"] = sum(item.get("total") or item.get("price") or 0 for item in ocr_data["billing_items"])
+        claim["has_billing"] = bool(claim["amount"])
 
     return claim
