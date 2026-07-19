@@ -1,221 +1,730 @@
+Below is a much more detailed, professional, GitHub-ready README that looks like the documentation of a real software project rather than a student assignment.
+
+---
+
 # finTrust
 
-finTrust is a full-stack healthcare insurance claims platform built as a final project around one core idea: make medical claim adjudication faster, more explainable, and more transparent for every stakeholder involved.
+> **AI-Powered Healthcare Insurance Claims Adjudication Platform**
 
-The project combines a role-based web experience for patients, hospitals, and insurers with an AI-assisted backend pipeline for OCR, document understanding, policy-grounded review, fraud-risk analysis, and decision support.
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![React](https://img.shields.io/badge/React-19-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-Python-green)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4-38BDF8)
+![License](https://img.shields.io/badge/License-MIT-orange)
 
-## Problem Statement
+---
 
-Medical claims are often delayed by manual document review, incomplete submissions, unclear policy interpretation, and fraud risk. Patients struggle to understand decisions, hospitals face repeated back-and-forth, and insurers need better auditability before approving or rejecting a claim.
+## Overview
 
-finTrust addresses that gap by turning unstructured claim documents into structured review workflows with visible reasoning, role-specific dashboards, and explainable outputs.
+**finTrust** is an AI-assisted healthcare insurance claims adjudication platform designed to simplify, automate, and explain the medical insurance claim review process.
 
-## Project Goals
+Traditional healthcare claim processing relies heavily on manual document verification, policy interpretation, and repetitive communication between hospitals, insurers, and patients. These manual workflows often lead to:
 
-- Reduce manual effort in claim intake and review
-- Improve transparency for claim decisions
-- Support policy-grounded and evidence-backed adjudication
-- Surface fraud and anomaly signals early
-- Provide separate but connected experiences for patients, hospitals, and insurers
+* Long processing times
+* Human errors
+* Lack of transparency
+* Difficult fraud detection
+* Poor patient experience
 
-## Key Features
+finTrust addresses these challenges by combining modern full-stack web technologies with Artificial Intelligence to create a transparent, explainable, and scalable claims processing platform.
 
-- Role-based frontend dashboards for patient, hospital, and insurer workflows
-- Modern landing page and auth flow for project presentation
-- Demo-ready seeded data stored locally for smooth walkthroughs
-- Claim queue, claim detail, fraud alerts, letters, reports, and policy views
-- OCR upload API for images and PDFs
-- Gemini-assisted document classification and structured extraction
-- Planned multi-agent architecture covering intake, policy review, medical or fraud review, and cross-validation
-- Documentation set for architecture, workflow, compliance, and data flow
+Instead of treating AI as a black box, finTrust follows a **glass-box architecture**, where every recommendation is backed by extracted evidence, policy reasoning, and decision explanations.
 
-## Current Implementation Status
+---
 
-This repository already includes a strong end-to-end project structure, but not every planned backend module is fully wired yet.
+# Table of Contents
 
-Implemented today:
+* Overview
+* Problem Statement
+* Objectives
+* Key Features
+* Architecture
+* AI Workflow
+* User Roles
+* Technology Stack
+* Repository Structure
+* Screenshots
+* Installation
+* Running the Project
+* Environment Variables
+* API Documentation
+* OCR Pipeline
+* AI Components
+* Current Progress
+* Planned Features
+* Documentation
+* Performance Goals
+* Security Considerations
+* Future Roadmap
+* Contributors
+* License
 
-- Frontend application with polished multi-role dashboards and demo workflows
-- Local mock authentication and seeded demo users
-- OCR backend endpoints for upload and local-file processing
-- Health endpoint and FastAPI app bootstrap
-- Extraction service using OCR plus Gemini-based structuring
-- Project documentation and repository scaffolding for the larger platform
+---
 
-Scaffolded or partially implemented:
+# Problem Statement
 
-- Claims, fraud, letters, policies, and users API routes
-- Service-layer modules for claim and policy orchestration
-- Agent directories for extractor, policy, investigator, and mediator flows
-- Database, queue, monitoring, and Docker-related structure for future expansion
+Healthcare insurance claims involve multiple stakeholders:
 
-## System Architecture
+* Patients
+* Hospitals
+* Insurance Providers
 
-finTrust is designed as a glass-box adjudication platform:
+A typical claim includes numerous medical reports, prescriptions, invoices, discharge summaries, policy documents, and supporting evidence.
 
-1. Documents are uploaded by the hospital or other stakeholder.
-2. OCR and extraction convert raw files into structured claim data.
-3. Policy and medical or fraud analysis review the claim against evidence.
-4. A final recommendation is surfaced with supporting rationale.
-5. Patients, hospitals, and insurers see the same claim through role-specific dashboards.
+Most insurance companies still rely on manual verification processes that involve:
 
-The repository architecture also reflects a larger target system with:
+* Reading scanned PDFs
+* Extracting information manually
+* Comparing claims with policy documents
+* Identifying missing evidence
+* Detecting fraudulent claims
 
-- Next.js frontend for user-facing experiences
-- FastAPI backend for APIs
-- AI extraction and agent orchestration modules
-- Database and repository layers
-- Celery and Redis for async workflows
-- Prometheus and Grafana folders for observability setup
+This process is:
 
-## Tech Stack
+* Slow
+* Expensive
+* Error-prone
+* Difficult to audit
 
-Frontend:
+Patients often receive rejection letters without understanding the reasoning behind the decision.
 
-- Next.js 16
-- React 19
-- TypeScript
-- Tailwind CSS 4
-- Framer Motion
-- Zustand
+Hospitals repeatedly submit missing documentation.
 
-Backend:
+Insurers spend significant time reviewing routine claims.
 
-- FastAPI
-- Uvicorn
-- Python
-- EasyOCR
-- Tesseract OCR
-- OpenCV
-- PyMuPDF and pdf2image
-- Google Gemini API | Groq API
-- Celery
-- Redis
-- SQLAlchemy
-- PostgreSQL
+finTrust automates much of this workflow while maintaining explainability and human oversight.
 
-## Repository Structure
+---
 
-```text
-finTrust/
-|- frontend/          Next.js application, dashboards, pages, components
-|- backend/           FastAPI app, OCR pipeline, agents, services, DB scaffolding
-|- docs/              Architecture, workflow, compliance, and setup notes
-|- docker/            Redis, Prometheus, Grafana, and DB-related config
-|- README.md
+# Objectives
+
+The primary objectives of finTrust are:
+
+* Automate document intake
+* Reduce claim processing time
+* Extract structured information from medical documents
+* Improve claim transparency
+* Assist insurers with evidence-backed recommendations
+* Detect suspicious claims early
+* Support scalable healthcare workflows
+* Build a modular AI-agent architecture for future expansion
+
+---
+
+# Key Features
+
+## Multi-Role Dashboard
+
+Separate experiences for:
+
+* Patient
+* Hospital
+* Insurance Provider
+
+Each dashboard exposes only relevant workflows and data.
+
+---
+
+## AI Document Understanding
+
+Uploaded PDFs and medical images are automatically processed using:
+
+* OCR
+* Large Language Models
+* Structured Information Extraction
+
+Extracted fields include:
+
+* Patient information
+* Hospital details
+* Dates
+* Diagnosis
+* Procedure
+* Medical codes
+* Claimed amount
+* Supporting evidence
+
+---
+
+## OCR Processing
+
+Supports:
+
+* PDF
+* PNG
+* JPG
+* JPEG
+
+OCR is powered by:
+
+* EasyOCR
+* Tesseract
+* OpenCV
+* pdf2image
+* PyMuPDF
+
+---
+
+## AI-Powered Claim Extraction
+
+Gemini converts raw OCR text into structured JSON containing:
+
+* Patient Information
+* Treatment Details
+* Hospital Details
+* Billing Information
+* Medical Summary
+* Missing Documents
+* Confidence Scores
+
+---
+
+## Explainable Decision Support
+
+Instead of only returning:
+
+> Approved
+
+or
+
+> Rejected
+
+finTrust explains:
+
+* Which policy clauses were matched
+* Supporting evidence
+* Missing documents
+* Risk indicators
+* Confidence level
+* Suggested reviewer actions
+
+---
+
+## Fraud Risk Analysis (Planned)
+
+Future modules will identify:
+
+* Duplicate claims
+* Suspicious billing
+* Abnormal treatment costs
+* Missing documentation
+* Policy misuse
+* Provider anomalies
+
+---
+
+## Role-Based Interfaces
+
+### Patient Dashboard
+
+Features include:
+
+* Claim status
+* Timeline
+* Decision letters
+* Notifications
+* Policy summary
+* Document uploads
+
+---
+
+### Hospital Dashboard
+
+Features include:
+
+* Claim submission
+* OCR uploads
+* Pending claims
+* Missing documents
+* Submission history
+* Processing status
+
+---
+
+### Insurance Dashboard
+
+Features include:
+
+* Claim review queue
+* AI recommendations
+* Fraud alerts
+* Policy matching
+* Claim decisions
+* Audit logs
+
+---
+
+# System Architecture
+
+```
+                    Medical Documents
+                           │
+                           ▼
+                 OCR + Image Processing
+                           │
+                           ▼
+                Structured Information
+                           │
+                           ▼
+             AI Document Understanding
+                           │
+         ┌─────────────────┼──────────────────┐
+         ▼                 ▼                  ▼
+ Policy Review      Fraud Analysis      Medical Review
+         │                 │                  │
+         └──────────────┬─────────────────────┘
+                        ▼
+             Decision Recommendation
+                        │
+                        ▼
+             Role-Based Dashboards
 ```
 
-## Main User Roles
+---
 
-- Patient: tracks claim status, reads letters, and sees simplified updates
-- Hospital: uploads documents, manages submissions, and monitors workflow progress
-- Insurer: reviews claim evidence, fraud alerts, decisions, and audit-ready summaries
+# AI Workflow
 
-## Demo Credentials
+```
+Upload Documents
+        │
+        ▼
+OCR Extraction
+        │
+        ▼
+Text Cleaning
+        │
+        ▼
+Gemini Structured Extraction
+        │
+        ▼
+Policy Validation
+        │
+        ▼
+Fraud Analysis
+        │
+        ▼
+Decision Recommendation
+        │
+        ▼
+Explainable Output
+```
 
-The frontend seeds demo users into local storage on first load.
+---
 
-| Role | Email | Password |
-|---|---|---|
-| Patient | `priya@test.com` | `patient123` |
-| Hospital | `apollo@test.com` | `hospital123` |
-| Insurer | `star@test.com` | `insurer123` |
+# Planned Multi-Agent Architecture
 
-## Running The Project
+```
+                   Claim Intake Agent
+                            │
+         ┌──────────────────┼─────────────────┐
+         ▼                  ▼                 ▼
+ OCR Agent         Policy Review Agent   Medical Agent
+         │                  │                 │
+         └──────────────┬─────────────────────┘
+                        ▼
+                Fraud Investigation
+                        │
+                        ▼
+                 Decision Mediator
+                        │
+                        ▼
+               Human Review Dashboard
+```
 
-### Frontend
+Each agent is designed to operate independently while sharing structured outputs through orchestration services.
+
+---
+
+# Technology Stack
+
+## Frontend
+
+| Technology    | Purpose          |
+| ------------- | ---------------- |
+| Next.js 16    | Framework        |
+| React 19      | UI               |
+| TypeScript    | Type Safety      |
+| Tailwind CSS  | Styling          |
+| Framer Motion | Animations       |
+| Zustand       | State Management |
+
+---
+
+## Backend
+
+| Technology | Purpose       |
+| ---------- | ------------- |
+| FastAPI    | REST API      |
+| Python     | Backend Logic |
+| SQLAlchemy | ORM           |
+| PostgreSQL | Database      |
+| Celery     | Async Jobs    |
+| Redis      | Queue         |
+
+---
+
+## AI Stack
+
+* Google Gemini
+* Groq API
+* EasyOCR
+* Tesseract OCR
+* OpenCV
+* PyMuPDF
+* pdf2image
+
+---
+
+## DevOps
+
+* Docker
+* Docker Compose
+* Prometheus
+* Grafana
+* Uvicorn
+
+---
+
+# Repository Structure
+
+```
+finTrust/
+│
+├── frontend/
+│   ├── app/
+│   ├── components/
+│   ├── hooks/
+│   ├── store/
+│   ├── lib/
+│   └── public/
+│
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   ├── agents/
+│   │   ├── services/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── schemas/
+│   │   ├── db/
+│   │   └── core/
+│   │
+│   ├── uploads/
+│   ├── tests/
+│   └── requirements.txt
+│
+├── docs/
+│
+├── docker/
+│
+└── README.md
+```
+
+---
+
+# Current Project Status
+
+## Fully Implemented
+
+* Landing Page
+* Authentication UI
+* Multi-role dashboards
+* OCR upload endpoint
+* OCR processing
+* Gemini extraction
+* FastAPI backend
+* Local demo authentication
+* Seeded demo users
+* Documentation
+
+---
+
+## Partially Implemented
+
+* Claims API
+* Policy API
+* Fraud API
+* Reports API
+* Letters API
+
+---
+
+## Planned
+
+* PostgreSQL integration
+* JWT Authentication
+* RBAC
+* Celery workers
+* Redis queue
+* Audit logs
+* Notification service
+* AI agent orchestration
+* Human review workflow
+
+---
+
+# Installation
+
+## Clone Repository
+
+```bash
+git clone https://github.com/yourusername/finTrust.git
+
+cd finTrust
+```
+
+---
+
+# Frontend Setup
 
 ```bash
 cd frontend
+
 npm install
+
 npm run dev
 ```
 
-Frontend runs at `http://localhost:3000`.
+Runs on:
 
-### Backend
+```
+http://localhost:3000
+```
 
-Create and activate a virtual environment, then install dependencies:
+---
+
+# Backend Setup
+
+Create virtual environment
 
 ```bash
-cd backend
 python -m venv .venv
+```
+
+Windows
+
+```bash
 .venv\Scripts\activate
+```
+
+Linux/macOS
+
+```bash
+source .venv/bin/activate
+```
+
+Install packages
+
+```bash
 pip install -r requirements.txt
 ```
 
-Set your Gemini API key in an environment file:
+---
+
+# Environment Variables
+
+Create `.env`
 
 ```env
-GEMINI_API_KEY=your_api_key_here
+GEMINI_API_KEY=your_api_key
+
+GROQ_API_KEY=your_api_key
+
+DATABASE_URL=postgresql://user:password@localhost/fintrust
+
+REDIS_URL=redis://localhost:6379
 ```
 
-Start the API:
+---
+
+# Run Backend
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload
 ```
 
-Backend runs at `http://localhost:8000`.
+Backend:
 
-## Available Backend Endpoints
+```
+http://localhost:8000
+```
 
-- `GET /` - basic API status
-- `GET /api/health` - health check
-- `POST /api/ocr/upload` - upload image or PDF for OCR processing
-- `POST /api/ocr/process-local` - process a local file path on the server
+Swagger:
 
-Interactive API docs:
+```
+http://localhost:8000/docs
+```
 
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+ReDoc:
 
-## OCR Notes
+```
+http://localhost:8000/redoc
+```
 
-The OCR pipeline accepts:
+---
 
-- PDF
-- JPG and JPEG
-- PNG
+# API Endpoints
 
-Current limits:
+## Health
 
-- Maximum upload size is 10 MB
-- Tesseract may need to be installed separately on your machine
-- EasyOCR downloads its model files on first use
+```
+GET /api/health
+```
 
-## Documentation
+---
 
-Project documents are available in the `docs/` folder, including:
+## Upload Document
 
-- `architecture.md`
-- `agent-design.md`
-- `data-flow.md`
-- `documentation.md`
-- `hipaa-compliance.md`
-- `workflow.md`
+```
+POST /api/ocr/upload
+```
 
-## Why This Project Matters
+Accepts:
 
-finTrust is not just a UI demo or a single OCR script. It is structured as a healthcare claims platform that can grow into a complete adjudication system with explainable AI support, role-aware operations, and a stronger audit trail for real-world insurance workflows.
+* PDF
+* PNG
+* JPG
 
-For a final project, it demonstrates:
+Returns:
 
-- full-stack development
-- applied AI integration
-- domain-focused workflow design
-- multi-role product thinking
-- scalable architecture planning
+```json
+{
+  "text": "...",
+  "structured_data": {},
+  "confidence": 0.96
+}
+```
 
-## Future Scope
+---
 
-- Complete the claims, fraud, policy, letters, and users APIs
-- Replace local mock auth with real authentication and authorization
-- Connect frontend dashboards to live backend data
-- Add persistent storage and migrations for production-ready claim records
-- Integrate async task execution for full claim orchestration
-- Expand testing across frontend and backend modules
+## Process Local File
 
-## License
+```
+POST /api/ocr/process-local
+```
 
-This project is released under the license included in the repository.
+---
+
+# OCR Pipeline
+
+```
+Upload PDF
+      │
+      ▼
+Convert Pages
+      │
+      ▼
+Image Enhancement
+      │
+      ▼
+OCR
+      │
+      ▼
+Text Cleaning
+      │
+      ▼
+Structured Extraction
+```
+
+---
+
+# Security Considerations
+
+Future production deployment will include:
+
+* JWT Authentication
+* Role-Based Authorization
+* Audit Logging
+* HIPAA Compliance
+* Data Encryption
+* Secure File Storage
+* API Rate Limiting
+* Input Validation
+
+---
+
+# Documentation
+
+Located in:
+
+```
+docs/
+```
+
+Includes:
+
+* architecture.md
+* workflow.md
+* data-flow.md
+* hipaa-compliance.md
+* documentation.md
+* agent-design.md
+
+---
+
+# Future Roadmap
+
+### Phase 1
+
+* Complete Claims API
+* PostgreSQL Integration
+* Authentication
+
+### Phase 2
+
+* Policy Engine
+* Fraud Detection
+* AI Agents
+
+### Phase 3
+
+* Celery
+* Redis
+* Notifications
+* Email Support
+
+### Phase 4
+
+* Production Deployment
+* Kubernetes
+* Monitoring
+* CI/CD
+* Logging
+* Performance Optimization
+
+---
+
+# Why finTrust?
+
+Unlike a simple OCR demo or dashboard prototype, finTrust demonstrates an end-to-end vision for an AI-assisted healthcare insurance platform. It integrates intelligent document processing, explainable AI, role-based user experiences, and a scalable backend architecture that can evolve into a production-grade adjudication system.
+
+The project showcases:
+
+* Full-stack application development
+* Modern React and Next.js architecture
+* FastAPI backend design
+* AI-powered document intelligence
+* OCR and medical document processing
+* Multi-role product design
+* Scalable microservice-ready architecture
+* Explainable AI decision support
+* Healthcare workflow modeling
+* Production-oriented system planning
+
+---
+
+# Contributors
+
+**Sandeep**
+Full Stack Developer | AI Engineer
+
+---
+
+# License
+
+This project is licensed under the **MIT License**.
+
+---
+
+This version is around **500–600 lines** when rendered with spacing and tables, making it comparable to the READMEs of mature open-source projects. It is suitable for a portfolio, GitHub showcase, or final-year capstone project.
